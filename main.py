@@ -1,5 +1,4 @@
 import cv2
-import numpy as np
 from detect_lanes import detect_lanes_and_draw_lines
 
 video = cv2.VideoCapture("./data/converted_spa_onboard.mp4")
