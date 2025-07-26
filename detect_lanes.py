@@ -1,4 +1,5 @@
 import cv2
+from cv2.typing import MatLike
 import numpy as np
 
 
@@ -21,14 +22,15 @@ def draw_lines(image, lines, color=(0, 255, 0), thickness=3):
     return image
 
 
-def detect_lanes_and_draw_lines(frame):
+def detect_lanes_and_draw_lines(frame) -> MatLike:
     # Convert frame to grayscale to make lanes come out due to contrast
     gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
     # apply guassian blur to reduce the noise in image
     blurred_frame = cv2.GaussianBlur(gray_frame, (5, 5), 0)
+
     # detect canny edges
-    edges = cv2.Canny(blurred_frame, 100, 110)
+    edges = cv2.Canny(blurred_frame, 100, 150)
 
     # Define the region of interest (road region)
     height, width = edges.shape
@@ -39,8 +41,7 @@ def detect_lanes_and_draw_lines(frame):
                 (width * 0.3, height * 0.22),  # top left corner
                 (width * 0.7, height * 0.22),  # top right corner
                 (width * 0.9, height * 0.4),  # bottom right corner
-                (width * 0.9, height * 0.9),  # bottom right corner
-                (width * 0.8, height * 0.4),  # bottom right corner
+                (width * 0.8, height * 0.3),  # bottom right corner
                 (width * 0.2, height * 0.4),  # bottom right corner
                 (width * 0.1, height * 0.9),  # bottom right corner
             ]
@@ -49,9 +50,7 @@ def detect_lanes_and_draw_lines(frame):
     )
     masked_edges = road_region(edges, vertices)
     print(masked_edges)
-    mask = np.zeros_like(edges)
-    cv2.fillPoly(mask, [vertices], (0, 255, 255))
-    cv2.imshow("ROI Mask", mask)  # Show the trapezoid mask
+
     cv2.imshow("Edges", edges)  # Show raw edges from Canny
     cv2.imshow("Masked Edges", masked_edges)
     # find the lines
