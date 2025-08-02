@@ -2,12 +2,12 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from cu_lane_dataset_class import CULaneDataset
 from torch.utils.data import DataLoader
 import random
 from torch.utils.data import Subset
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
+from lane_dataset_class import LaneDataset
 
 random.seed(42)
 IMG_HEIGHT, IMG_WIDTH = 256, 512
@@ -30,7 +30,6 @@ train_transform = A.Compose(
     ]
 )
 
-
 val_transform = A.Compose(
     [
         A.Resize(IMG_HEIGHT, IMG_WIDTH),
@@ -39,28 +38,21 @@ val_transform = A.Compose(
     ]
 )
 
-train_dataset = CULaneDataset(
-    "./culane_split_dataset",
+train_dataset =  LaneDataset(
+    "/f1-road-dataset/f1_road_dataset",
     split="train",
     img_size=(256, 512),
     transform=train_transform,
 )
-val_dataset = CULaneDataset(
-    "./culane_split_dataset", split="val", img_size=(256, 512), transform=val_transform
+val_dataset = LaneDataset(
+    "/f1-road-dataset/f1_road_dataset", split="test", img_size=(256, 512), transform=val_transform
 )
 
-# Get 500 random indices from the full training dataset
-random_indices_train = random.sample(range(len(train_dataset)), 500)
-random_indices_val = random.sample(range(len(val_dataset)), 100)
-
-# Create a subset using these indices
-train_subset = Subset(train_dataset, random_indices_train)
-val_subset = Subset(val_dataset, random_indices_val)
 
 # Create data loaders with the subset for training
-train_loader = DataLoader(train_subset, batch_size=8, shuffle=True, num_workers=2)
-val_loader = DataLoader(val_subset, batch_size=8, shuffle=False, num_workers=2)
-
+train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True, num_workers=2)
+val_loader = DataLoader(val_dataset, batch_size=8, shuffle=False, num_workers=2)
+len(train_loader), len(val_loader)
 
 # %%cell 6
 class DoubleConv(nn.Module):
@@ -78,43 +70,54 @@ class DoubleConv(nn.Module):
     def forward(self, x):
         return self.double_conv(x)
 
-
 # %%cell 5
 class LaneDetectionUNet(nn.Module):
     def __init__(self):
         super(LaneDetectionUNet, self).__init__()
 
         # encoder
-        self.down1 = DoubleConv(3, 64)
+        self.down1 = DoubleConv(3, 16)
         self.pool1 = nn.MaxPool2d(kernel_size=2)
 
-        self.down2 = DoubleConv(64, 128)
+        self.down2 = DoubleConv(16, 32)
         self.pool2 = nn.MaxPool2d(kernel_size=2)
 
-        self.down3 = DoubleConv(128, 256)
+        self.down3 = DoubleConv(32, 64)
         self.pool3 = nn.MaxPool2d(kernel_size=2)
 
-        self.down4 = DoubleConv(256, 512)
+        self.down4 = DoubleConv(64, 128)
         self.pool4 = nn.MaxPool2d(kernel_size=2)
+
+        self.down5 = DoubleConv(128, 256)
+        self.pool5 = nn.MaxPool2d(kernel_size=2)
+
+        self.down6 = DoubleConv(256, 512)
+        self.pool6 = nn.MaxPool2d(kernel_size=2)
 
         # bottleneck
         self.bottleneck = DoubleConv(512, 1024)
 
         # decoder
-        self.up_conv4 = nn.ConvTranspose2d(1024, 512, kernel_size=2, stride=2)
-        self.conv4 = DoubleConv(1024, 512)
+        self.up_conv6 = nn.ConvTranspose2d(1024, 512, kernel_size=2, stride=2)
+        self.dec_conv6 = DoubleConv(1024, 512)
 
-        self.up_conv3 = nn.ConvTranspose2d(512, 256, kernel_size=2, stride=2)
-        self.conv3 = DoubleConv(512, 256)
+        self.up_conv5 = nn.ConvTranspose2d(512, 256, kernel_size=2, stride=2)
+        self.dec_conv5 = DoubleConv(512, 256)
 
-        self.up_conv2 = nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2)
-        self.conv2 = DoubleConv(256, 128)
+        self.up_conv4 = nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2)
+        self.dec_conv4 = DoubleConv(256, 128)
 
-        self.up_conv1 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
-        self.conv1 = DoubleConv(128, 64)
+        self.up_conv3 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
+        self.dec_conv3 = DoubleConv(128, 64)
+
+        self.up_conv2 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)
+        self.dec_conv2 = DoubleConv(64, 32)
+
+        self.up_conv1 = nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2)
+        self.dec_conv1 = DoubleConv(32, 16)
 
         # final output layer
-        self.final_conv = nn.Conv2d(64, 1, kernel_size=1)
+        self.final_conv = nn.Conv2d(16, 1, kernel_size=1)
 
     def forward(self, x):
         # encoder
@@ -130,37 +133,52 @@ class LaneDetectionUNet(nn.Module):
         x4 = self.down4(p3)
         p4 = self.pool4(x4)
 
+        x5 = self.down5(p4)
+        p5 = self.pool5(x5)
+
+        x6 = self.down6(p5)
+        p6 = self.pool6(x6)
+
         # bottleneck
-        bottleneck = self.bottleneck(p4)
+        bottleneck = self.bottleneck(p6)
 
         # decoder
-        up4 = self.up_conv4(bottleneck)
+        up6 = self.up_conv6(bottleneck)
+        x6 = torch.cat([up6, x6], dim=1)
+        x6 = self.dec_conv6(x6)
+
+        up5 = self.up_conv5(x6)
+        x5 = torch.cat([up5, x5], dim=1)
+        x5 = self.dec_conv5(x5)
+
+        up4 = self.up_conv4(x5)
         x4 = torch.cat([up4, x4], dim=1)
-        x4 = self.conv4(x4)
+        x4 = self.dec_conv4(x4)
 
         up3 = self.up_conv3(x4)
         x3 = torch.cat([up3, x3], dim=1)
-        x3 = self.conv3(x3)
+        x3 = self.dec_conv3(x3)
 
         up2 = self.up_conv2(x3)
         x2 = torch.cat([up2, x2], dim=1)
-        x2 = self.conv2(x2)
+        x2 = self.dec_conv2(x2)
 
         up1 = self.up_conv1(x2)
         x1 = torch.cat([up1, x1], dim=1)
-        x1 = self.conv1(x1)
+        x1 = self.dec_conv1(x1)
 
         # final output
         return self.final_conv(x1)
-
 
 # %%cell 5
 model = LaneDetectionUNet()
 criterion = nn.BCEWithLogitsLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 model = model.to(device)
-epochs = 1
+
+
 # %%cell 6
+epochs = 30
 for i in range(epochs):
     total_epoch_loss = 0.0
     for batch_features, batch_labels in train_loader:
@@ -182,13 +200,11 @@ for i in range(epochs):
     print(f"Epoch {i + 1}/{epochs}, Loss: {total_epoch_loss / len(train_loader):.4f}")
 
 # %%cell 6
-# Calculate IoU and accuracy on validation set
 iou_scores = []
 accuracy_scores = []
 
 with torch.no_grad():
     for batch_features, batch_labels in val_loader:
-        # move data to gpu
         batch_features, batch_labels = (
             batch_features.to(device),
             batch_labels.to(device),
@@ -196,19 +212,15 @@ with torch.no_grad():
 
         outputs = model(batch_features)
 
-        # Apply sigmoid to get probabilities
         preds = torch.sigmoid(outputs) >= 0.5
 
-        # Calculate IoU: intersection / union
         intersection = (preds & (batch_labels.bool())).float().sum((1, 2, 3))
         union = (preds | (batch_labels.bool())).float().sum((1, 2, 3))
 
-        # Handle division by zero in case there are no lane pixels
         union = torch.clamp(union, min=1e-6)
         batch_iou = (intersection / union).mean().item()
         iou_scores.append(batch_iou)
 
-        # Calculate accuracy: (TP + TN) / total pixels
         correct_pixels = (preds == batch_labels.bool()).float().sum((1, 2, 3))
         total_pixels = (
             batch_labels.shape[1] * batch_labels.shape[2] * batch_labels.shape[3]
