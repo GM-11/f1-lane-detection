@@ -1,58 +1,88 @@
 import os
 import shutil
-import glob
 import random
+from pathlib import Path
+from tqdm import tqdm
 
-# Adjust these paths
-IMAGE_ROOT = "./driver_161_90frame"  # where your MP4 folders with images live
-MASK_ROOT = "./driver_161_90frame_masks"  # where your masks live
-OUTPUT_ROOT = "./culane_split_dataset"  # output folder
+# ===== CONFIG =====
+input_dir = "new_data"
+train_ratio = 0.8
+output_dir = "f1_road_dataset"  # will create train/ and test/ inside
+random.seed(42)
+# ==================
 
-# Desired split
-TRAIN_RATIO = 0.8
+def collect_image_mask_pairs():
+    """Collect all image-mask pairs from the input directory"""
+    pairs = []
 
-# Collect all image paths
-all_images = glob.glob(os.path.join(IMAGE_ROOT, "**", "*.jpg"), recursive=True)
-print(f"Found {len(all_images)} images.")
+    images_dir = os.path.join(input_dir, "images")
+    masks_dir = os.path.join(input_dir, "masks")
 
-# Shuffle for randomness
-random.shuffle(all_images)
+    if not os.path.exists(images_dir) or not os.path.exists(masks_dir):
+        print(f"[ERROR] Images or masks directory not found in {input_dir}")
+        return pairs
 
-# Split
-train_cutoff = int(len(all_images) * TRAIN_RATIO)
-train_images = all_images[:train_cutoff]
-val_images = all_images[train_cutoff:]
+    # Get all image files
+    for file in os.listdir(images_dir):
+        if file.endswith('.png'):
+            img_path = os.path.join(images_dir, file)
 
+            # Look for corresponding mask file
+            mask_name = file.replace('.png', '_mask.png')
+            mask_path = os.path.join(masks_dir, mask_name)
 
-# Helper to copy
-def copy_split(image_list, split_name):
-    img_out_dir = os.path.join(OUTPUT_ROOT, split_name, "images")
-    msk_out_dir = os.path.join(OUTPUT_ROOT, split_name, "masks")
-    os.makedirs(img_out_dir, exist_ok=True)
-    os.makedirs(msk_out_dir, exist_ok=True)
+            if os.path.exists(mask_path):
+                pairs.append((img_path, mask_path))
+            else:
+                print(f"[WARN] No mask found for {img_path}")
 
-    for img_path in image_list:
-        # relative parts
-        filename = os.path.basename(img_path)
-        foldername = os.path.basename(os.path.dirname(img_path))
-        # mask path
-        mask_name = os.path.splitext(filename)[0] + "_mask.png"
-        mask_path = os.path.join(MASK_ROOT, foldername, mask_name)
+    return pairs
 
-        if not os.path.exists(mask_path):
-            print(f"[WARN] Missing mask for {img_path}")
-            continue
+def copy_files(pairs, split_name):
+    """Copy image-mask pairs to the appropriate split directory"""
+    for img_path, mask_path in tqdm(pairs, desc=f"Copying {split_name}"):
+        # Get filenames
+        img_filename = os.path.basename(img_path)
+        mask_filename = os.path.basename(mask_path)
 
-        # destination
-        img_dst = os.path.join(img_out_dir, f"{foldername}_{filename}")
-        msk_dst = os.path.join(msk_out_dir, f"{foldername}_{mask_name}")
+        # Create output paths
+        out_img_path = os.path.join(output_dir, split_name, "images", img_filename)
+        out_mask_path = os.path.join(output_dir, split_name, "masks", mask_filename)
 
-        shutil.copy2(img_path, img_dst)
-        shutil.copy2(mask_path, msk_dst)
+        # Create directories
+        Path(out_img_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(out_mask_path).parent.mkdir(parents=True, exist_ok=True)
 
-    print(f"[INFO] {split_name} done: {len(image_list)} images")
+        # Copy files
+        shutil.copy2(img_path, out_img_path)
+        shutil.copy2(mask_path, out_mask_path)
 
+# ===== Main execution =====
+print("Collecting image-mask pairs...")
+pairs = collect_image_mask_pairs()
 
-# Run copy
-copy_split(train_images, "train")
-copy_split(val_images, "val")
+if not pairs:
+    print("No image-mask pairs found!")
+    exit(1)
+
+# Shuffle and split
+random.shuffle(pairs)
+split_idx = int(len(pairs) * train_ratio)
+train_pairs = pairs[:split_idx]
+test_pairs = pairs[split_idx:]
+
+print(f"Total pairs: {len(pairs)}")
+print(f"Train pairs: {len(train_pairs)}")
+print(f"Test pairs: {len(test_pairs)}")
+
+# Create output directories
+os.makedirs(os.path.join(output_dir, "train", "images"), exist_ok=True)
+os.makedirs(os.path.join(output_dir, "train", "masks"), exist_ok=True)
+os.makedirs(os.path.join(output_dir, "test", "images"), exist_ok=True)
+os.makedirs(os.path.join(output_dir, "test", "masks"), exist_ok=True)
+
+# Copy files
+copy_files(train_pairs, "train")
+copy_files(test_pairs, "test")
+
+print("✅ Done! Dataset split completed at:", output_dir)
