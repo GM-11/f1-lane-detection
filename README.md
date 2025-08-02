@@ -1,4 +1,4 @@
-# F1 Lane Keeping System
+# F1 Lane Detection System
 
 A project that detects lane markings in Formula 1 race footage using a custom U-Net deep learning model. The system processes video frames in real-time to identify lane boundaries and visualize them with overlay graphics.
 

@@ -4,52 +4,12 @@ from detect_lanes_using_model import detect_lanes_and_draw_lines
 from box_around_car import draw_box_around_car
 import matplotlib.pyplot as plt
 import numpy as np
-video = cv2.VideoCapture("./data/lando_monaco_lap.mp4")
+# video = cv2.VideoCapture("./data/lando_monaco_lap.mp4")
+# video = cv2.VideoCapture("./data/lewis_monza_lap.mp4")
+video = cv2.VideoCapture("./data/oscar_bahrain_pole.mp4")
 
-
-def main_with_cv2():
-
-    if not video.isOpened():
-        print("Error: Could not open video.")
-        return
-
-    # Get video properties
-    fps = int(video.get(cv2.CAP_PROP_FPS))
-    frame_count = 0
-    total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
-
-    while True:
-        ret, frame = video.read()
-
-        if not ret:
-                break
-
-        frame_with_lines = detect_lanes_and_draw_lines(frame)
-        frame_with_box = draw_box_around_car(frame_with_lines)
-
-            # Display the frame
-        cv2.namedWindow("Lane Detection", cv2.WINDOW_NORMAL)
-        cv2.resizeWindow("Lane Detection", 1000, 750)
-        cv2.imshow("Lane Detection", frame_with_box)
-
-                # Break on 'q' key press
-        if cv2.waitKey(1) & 0xFF == ord("q"):
-            break
-
-
-        frame_count += 1
-        if frame_count % 30 == 0:  # Print progress every 30 frames
-            print(f"Processed {frame_count}/{total_frames} frames ({frame_count/total_frames*100:.1f}%)")
-
-
-
-
-        video.release()
-        cv2.destroyAllWindows()
-        print(f"Processed {frame_count} frames total")
 
 def main_with_plt():
-
 
     if not video.isOpened():
         print("Error: Could not open video.")
