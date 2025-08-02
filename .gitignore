@@ -2,3 +2,9 @@ data
 trying_opencv.py
 driver_*
 culane_*
+f1_road_dataset
+frames_json
+new_data
+
+f1_lane_detection.pth
+f1_road_dataset.zip
