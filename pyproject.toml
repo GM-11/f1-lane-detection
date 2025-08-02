@@ -7,10 +7,13 @@ requires-python = ">=3.13"
 dependencies = [
     "albumentations>=2.0.8",
     "ipykernel>=6.30.0",
+    "jupytext>=1.17.2",
+    "labelme>=5.8.3",
     "matplotlib>=3.10.3",
     "numpy>=2.3.1",
     "opencv-python>=4.11.0.86",
     "scikit-learn>=1.7.1",
+    "segmentation-models-pytorch>=0.5.0",
     "torch>=2.7.1",
     "torchvision>=0.22.1",
     "yt-dlp>=2025.7.21",
