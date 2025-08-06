@@ -12,6 +12,10 @@ A project that detects lane markings in Formula 1 race footage using a custom U-
 
 <p align="center">
   <img src="images/oscar_bahrain_pole_lap.png" alt="Oscar Bahrain Pole Lap" width="45%">
+  <img src="images/lewis_monza_2.png" alt="Charles Bahrain Lap" width="45%">
+</p>
+<p align="center">
+  <img src="images/oscar_bahrain_2.png" alt="Oscar Bahrain Pole Lap" width="45%">
 </p>
 
 
